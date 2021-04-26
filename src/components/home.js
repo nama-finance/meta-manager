@@ -1,6 +1,7 @@
 import useIpfsFactory from '../hooks/use-ipfs-factory.js'
 import useIpfs from '../hooks/use-ipfs.js'
 import { useEffect } from 'react';
+import MetaForm from './meta-form';
 
 const Abc = async (ipfs, text) => {
   const { cid } = await ipfs.add(text)
@@ -20,6 +21,7 @@ function Home() {
 
   return (
     <main>
+      <MetaForm />
       {ipfsInitError && (
         <div className='bg-yellow pa4 mw7 center mv4 white'>
           Error: {ipfsInitError.message || ipfsInitError}
