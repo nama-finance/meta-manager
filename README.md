@@ -1,5 +1,12 @@
 # Data manager for digital meta creators
 
+## Tech stack
+
+* Torus - login and encrypt data
+* IPFS - stores the meta data
+* Orbitdb - stores the IPFS hashes and abstraction meta data
+
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
