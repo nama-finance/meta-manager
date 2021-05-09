@@ -6,6 +6,7 @@ import useOrbitDb from './hooks/use-orbit-db';
 import './App.css';
 import MetaList from './components/meta-list';
 import OpenLogin from '@toruslabs/openlogin';
+import crypto from 'crypto';
 import eccrypto from '@toruslabs/eccrypto';
 import { CircularProgress, Center } from '@chakra-ui/react';
 import { ethers } from 'ethers';
@@ -18,6 +19,7 @@ const VERIFIER = {
 function App() {
   const [isLoading, setLoading] = useState(true);
   const [privKey, setPrivKey] = useState();
+  const [pubKey, setPubKey] = useState();
   const [walletAddress, setWalletAddress] = useState('');
   const [openLogin, setOpenLogin] = useState();
 
@@ -25,27 +27,32 @@ function App() {
   const orbitdb = useOrbitDb(walletAddress, ipfs);
 
   const onTorusLogin = async () => {
-    if (isLoading) return;
+    if (isLoading || privKey) return;
 
     try {
       await openLogin.login({
         loginProvider: VERIFIER.loginProvider,
-        redirectUrl: 'http://localhost:3000',
+        redirectUrl: `${window.origin}`,
       });
-      const wallet = new ethers.Wallet(openLogin.privKey, ethers.getDefaultProvider());
-      const address = await wallet.getAddress();
-      setWalletAddress(address);
-      setPrivKey(openLogin.privKey);
       setOpenLogin(openLogin);
+
+      if (openLogin.privKey) {
+        const publicKey = eccrypto.getPublic(Buffer.from(openLogin.privKey, 'hex')).toString('hex');
+        setPubKey(publicKey);
+        const wallet = new ethers.Wallet(openLogin.privKey, ethers.getDefaultProvider());
+        const address = await wallet.getAddress();
+        setWalletAddress(address);
+        setPrivKey(openLogin.privKey);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const onTorusLogout = () => {
+  const onTorusLogout = async () => {
     setPrivKey('');
     setWalletAddress('');
-    openLogin.logout();
+    await openLogin.logout();
   }
 
   const onMount = async () => {
@@ -61,6 +68,8 @@ function App() {
       await openLogin.init();
       setOpenLogin(openLogin);
       if (openLogin.privKey) {
+        const publicKey = eccrypto.getPublic(Buffer.from(openLogin.privKey, 'hex')).toString('hex');
+        setPubKey(publicKey);
         setPrivKey(openLogin.privKey);
         const wallet = new ethers.Wallet(openLogin.privKey, ethers.getDefaultProvider());
         const address = await wallet.getAddress();
@@ -85,7 +94,7 @@ function App() {
       )
     : (
         <IpfsContext.Provider value={{ipfs}}>
-          <TorusContext.Provider value={{walletAddress, privKey, onTorusLogin, onTorusLogout}}>
+          <TorusContext.Provider value={{walletAddress, pubKey, privKey, onTorusLogin, onTorusLogout}}>
             <OrbitdbContext.Provider value={{orbitdb}}>
               <div className="App">
                 <Nav />
@@ -100,3 +109,18 @@ function App() {
 }
 
 export default App;
+
+
+// const privateKey = Buffer.from(openLogin.privKey, 'hex');
+// const publicKey = eccrypto.getPublic(privateKey);
+// const str = "message to sign";
+// const msg = crypto.createHash("sha256").update(str).digest();
+// eccrypto.sign(privateKey, msg).then(function(sig) {
+//   console.log("Signature in DER format:", sig);
+//
+//   eccrypto.verify(publicKey, msg, sig).then(function() {
+//     console.log("Signature is OK");
+//   }).catch(function() {
+//     console.log("Signature is BAD");
+//   });
+// });

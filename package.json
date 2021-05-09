@@ -14,6 +14,7 @@
     "@toruslabs/openlogin": "^0.7.8",
     "@web3-react/core": "^6.1.9",
     "buffer": "^6.0.3",
+    "crypto": "^1.0.1",
     "date-fns": "^2.21.2",
     "dot-prop": "^6.0.1",
     "ethers": "^5.1.4",

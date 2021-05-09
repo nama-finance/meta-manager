@@ -6,6 +6,7 @@ const OrbitdbContext = React.createContext();
 
 const TorusContext = React.createContext({
   walletAddress: '',
+  pubKey: '',
   privKey: '',
   setPubKey: () => {},
   onTorusLogin: () => {},

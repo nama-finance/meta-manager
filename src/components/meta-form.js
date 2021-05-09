@@ -22,6 +22,8 @@ import {
 import IpfsUploader from './ipfs-uploader';
 import {IpfsContext, OrbitdbContext, TorusContext} from '../context';
 import { nanoid } from 'nanoid';
+import crypto from 'crypto';
+import eccrypto from '@toruslabs/eccrypto';
 
 
 const MetaForm = ({ onClose, data }) => {
@@ -35,7 +37,7 @@ const MetaForm = ({ onClose, data }) => {
   const { orbitdb } = useContext(OrbitdbContext);
   const { ipfs } = useContext(IpfsContext);
 
-  const { walletAddress } = useContext(TorusContext);
+  const { privKey, pubKey, walletAddress } = useContext(TorusContext);
 
   const toast = useToast();
 
@@ -53,20 +55,47 @@ const MetaForm = ({ onClose, data }) => {
 
   const onSubmit = async metaValue => {
     setIsLoading(true);
+    const privateKey = Buffer.from(privKey, 'hex');
     const metaData = removeBlankValues({...metaValue, ...imageUrl});
 
     let controller = `did:ether:${walletAddress}`;
     let history = [];
     if (data && data._id) {
       const prevData = await retrieveHashData(data.ipfsHash);
+      const plaintext = await eccrypto.decrypt(privateKey, prevData.encrypted);
+      if (plaintext.toString() !== 'Hi NAMA') {
+        toast({
+          title: 'Not Authorised.',
+          description: 'You\'re not authorised to update this record.',
+          status: 'error',
+          variant: 'left-accent',
+          position: 'top-right',
+          isClosable: true,
+        })
+
+        onClose();
+
+        return;
+      }
+
       if (prevData.history) {
         history = history.concat(prevData.history);
         history.unshift(data.ipfsHash);
       }
     }
 
-    const dataTobeSaved = JSON.stringify({...data, ...metaData, controller, history, timestamp: Date.now()})
-    const { path } = await ipfs.add(dataTobeSaved);
+    const msg = crypto.createHash('sha256').update('hello word').digest();
+    const sig = await eccrypto.sign(privateKey, msg);
+    // eccrypto.verify(pubKey, msg, sig).then(function() {
+    //   console.log('Signature is OK');
+    // }).catch(function() {
+    //   console.log('Signature is BAD');
+    // });
+
+    let dataTobeSaved = {...data, ...metaData, controller, history, pubKey, msg, sig, timestamp: Date.now()};
+    delete dataTobeSaved.version;
+    delete dataTobeSaved.encrypted;
+    const { path } = await ipfs.add(JSON.stringify(dataTobeSaved));
 
     // const addr = `/ipfs/${path}`
     // ipfs.name.publish(addr).then(function (res) {
@@ -82,16 +111,26 @@ const MetaForm = ({ onClose, data }) => {
         version = !isNaN(Number(data.version)) ? data.version + 1 : version;
       }
 
-      await orbitdb.put({ _id: id, name: metaData.name, version: version, ipfsHash: path, timestamp: Date.now() }); // , { pin: true }
-      onClose();
+      const encrypted = await eccrypto.encrypt(Buffer.from(pubKey, 'hex'), Buffer.from('Hi NAMA'));
+      await orbitdb.put({
+        _id: id,
+        name: metaData.name,
+        version: version,
+        ipfsHash: path,
+        encrypted: encrypted,
+        timestamp: Date.now(),
+      }); // , { pin: true }
+
       toast({
-        title: `Metadata ${data._id ? 'updated.' : 'created.'}`,
-        description: `We've ${data._id ? 'updated' : 'created'} the metadata for you.`,
+        title: `Metadata ${data && data._id ? 'updated.' : 'created.'}`,
+        description: `We've ${data && data._id ? 'updated' : 'created'} the metadata for you.`,
         status: 'success',
         variant: 'left-accent',
         position: 'top-right',
         isClosable: true,
-      })
+      });
+
+      onClose();
     } else {
       console.error('orbitdb is not initialised!');
     }
@@ -248,7 +287,7 @@ const MetaForm = ({ onClose, data }) => {
                   const fieldName = `attributes[${index}]`;
                   return (
                     <Box key={fieldName} maxW={'xl'} marginTop={2} p={4} borderWidth="1px" borderRadius="lg" overflow="hidden">
-                      <FormControl as="fieldset">
+                      <FormControl as="fieldset" mt={2}>
                         <FormLabel as="legend">Display Type:</FormLabel>
                         <Select
                           name={`${fieldName}.display_type`}

@@ -64,10 +64,8 @@ export default function IpfsUploader({addImageURI}) {
   const saveToIpfs = async (ipfs, reader) => {
     const buffer = Buffer.from(reader.result)
     const { path } = await ipfs.add(buffer)
-    const res = await ipfs.name.publish(`/ipfs/${path}`)
-    console.log('ipns res:', res)
+    // await ipfs.name.publish(`/ipfs/${path}`)
     await addImageURI(path)
-    console.info(path)
   }
 
   const thumbs = files.map(file => (
