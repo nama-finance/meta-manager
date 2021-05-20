@@ -1,5 +1,7 @@
 # Decentralised data manager for meta creators (ETH)
 
+This is implemented during the Scaling Ethereum Hackathon hosted by ETHGlobal.
+
 ## Tech stack
 
 * Torus - multi-chain login, encrypt and verify data
