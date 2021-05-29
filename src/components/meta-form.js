@@ -1,4 +1,4 @@
-import React, {useContext, useEffect, useState} from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Button,
@@ -17,14 +17,41 @@ import {
   DrawerBody,
   DrawerFooter,
   Flex,
-  useToast
+  useToast, CircularProgress
 } from '@chakra-ui/react';
-import IpfsUploader from './ipfs-uploader';
-import {IpfsContext, OrbitdbContext, TorusContext} from '../context';
 import { nanoid } from 'nanoid';
-import crypto from 'crypto';
-import eccrypto from '@toruslabs/eccrypto';
+import NftResolver from 'nft-did-resolver';
+import { Resolver } from 'did-resolver';
+import Ceramic from '@ceramicnetwork/http-client';
+import { TextileProviderContext, WalletAddressContext, WalletProviderContext } from '../context';
+import IpfsUploader from './ipfs-uploader';
+import KeyDidResolver from 'key-did-resolver'
+import ThreeIdResolver from '@ceramicnetwork/3id-did-resolver'
+import { DID } from 'dids';
+import { ThreeIdConnect,  EthereumAuthProvider } from '@3id/connect';
+import useTextile from '../hooks/use-textile';
+import { ThreadID, Where } from '@textile/hub';
+const Ed25519Provider = require('key-did-provider-ed25519');
 
+
+// createdBy, yearCreated, media{uri, dimensions, size, memeType}, tags
+
+const config = {
+  // ceramic,
+  // subGraphUrls: { // optional, there are defaults for ethereum mainnet (erc721 and erc1155)
+  //   // CAIP2 ChainID (below is ETH mainnet)
+  //   'eip155:1': {
+  //     // Asset namespace
+  //     erc721: 'https://api.thegraph.com/subgraphs/name/xxx/yyy',
+  //     // erc721: 'http://localhost:8000/subgraphs/name/aoeu/qjkx' // also works!
+  //     erc1155: 'https://api.thegraph.com/subgraphs/name/abc/xyz'
+  //   },
+  //   // Fake cosmos example
+  //   'cosmos:nft-token-chainid': {
+  //     erc721: 'https://api.thegraph.com/subgraphs/name/aaa/ooo'
+  //   }
+  // }
+}
 
 const MetaForm = ({ onClose, data }) => {
   const [indexes, setIndexes] = useState([]);
@@ -34,12 +61,80 @@ const MetaForm = ({ onClose, data }) => {
 
   const { register, handleSubmit, setValue } = useForm();
 
-  const { orbitdb } = useContext(OrbitdbContext);
-  const { ipfs } = useContext(IpfsContext);
+  const { walletAddress } = useContext(WalletAddressContext);
+  const { web3 } = useContext(WalletProviderContext);
 
-  const { privKey, pubKey, walletAddress } = useContext(TorusContext);
+  // const { identity, buckets } = useContext(TextileProviderContext);
+  const { identity, buckets, threadDBClient, bucketKey, threadID } = useTextile()
 
   const toast = useToast();
+
+  useEffect(() => {
+    // ceramicConnection()
+    setIsLoading(true);
+  }, [])
+
+
+  useEffect(() => {
+    if (threadID && threadDBClient && bucketKey) {
+      callAbc()
+    }
+  }, [threadID, threadDBClient, bucketKey])
+
+  const callAbc = async () => {
+    console.log(bucketKey, buckets, threadID)
+
+    const links = await buckets.links(bucketKey)
+    console.log('links:', links)
+    const buzz = {
+      name: 'Buzzaa',
+      missions: 22,
+      _id: '',
+    }
+    // await threadDBClient.newCollectionFromObject(threadID, buzz)
+
+    // Store the buzz object in the new collection
+    // await threadDBClient.create(threadID, 'collection', [buzz])
+
+    const coll = await threadDBClient.listCollections(threadID)
+    console.log('coll:', coll)
+
+    const query = new Where('name')
+    const astronaut = await threadDBClient.find(threadID, 'collection', query)
+    console.log('astronaut', astronaut)
+  }
+
+  const ceramicConnection = async () => {
+    const ceramic = new Ceramic() // connects to localhost:7007 by default
+
+    const addresses = await window.ethereum.enable()
+    console.log('addresses:', addresses)
+
+    const threeIdConnect = new ThreeIdConnect();
+    const authProvider = new EthereumAuthProvider(window.ethereum, walletAddress)
+    await threeIdConnect.connect(authProvider)
+    const provider = await threeIdConnect.getDidProvider()
+
+    const resolver = { ...ThreeIdResolver.getResolver(ceramic) };
+    const did = new DID({ provider, resolver })
+
+    await ceramic.setDID(did)
+    await ceramic.did.authenticate()
+
+    // ceramic.did.setProvider(provider)
+
+
+    // await did.authenticate();
+    // console.log('did:', did.id)
+    // getResolver will return an object with a key/value pair of { 'nft': resolver }
+    // where resolver is a function used by the generic did resolver.
+    // const nftResolver = NftResolver.getResolver(config)
+    // const didResolver = new Resolver(nftResolver)
+    //
+    // const erc721result = await didResolver.resolve('did:nft:eip155.1_erc721.0x06012c8cf97BEaD5deAe237070F9587f8E7A266d_771769')
+    // const erc1155result = await didResolver.resolve('did:nft:eip155.1_erc1155.0x06eb48572a2ef9a3b230d69ca731330793b65bdc_1')
+    // console.log(erc721result, erc1155result)
+  }
 
   const removeBlankValues = obj => {
     if (Array.isArray(obj)) {
@@ -53,49 +148,41 @@ const MetaForm = ({ onClose, data }) => {
     }
   }
 
-  const onSubmit = async metaValue => {
-    setIsLoading(true);
-    const privateKey = Buffer.from(privKey, 'hex');
-    const metaData = removeBlankValues({...metaValue, ...imageUrl});
+  const saveData = async () => {
+    console.log('===>', identity) //'identity=>', Buffer.from(identity.pubKey, 'hex').toString('hex')
 
-    let controller = `did:ether:${walletAddress}`;
-    let history = [];
-    if (data && data._id) {
-      const prevData = await retrieveHashData(data.ipfsHash);
-      const plaintext = await eccrypto.decrypt(privateKey, prevData.encrypted);
-      if (plaintext.toString() !== 'Hi NAMA') {
-        toast({
-          title: 'Not Authorised.',
-          description: 'You\'re not authorised to update this record.',
-          status: 'error',
-          variant: 'left-accent',
-          position: 'top-right',
-          isClosable: true,
-        })
+    // const links = await buckets.links(bucketKey)
+    // console.log('links:', links)
 
-        onClose();
-
-        return;
-      }
-
-      if (prevData.history) {
-        history = history.concat(prevData.history);
-        history.unshift(data.ipfsHash);
-      }
+    // Create a json model for the index
+    const index = {
+      author: identity.public.toString(),
+      date: (new Date()).getTime(),
+      paths: [],
     }
+    // Store the index in the Bucket (or in the Thread later)
+    return new Promise((resolve, reject) => {
+      const buf = Buffer.from(JSON.stringify(index, null, 2))
+      const patha = `index.json`
+      buckets.pushPath(bucketKey, patha, buf).then((raw) => {
+        resolve(raw)
+      })
+    })
+  }
 
-    const msg = crypto.createHash('sha256').update('hello word').digest();
-    const sig = await eccrypto.sign(privateKey, msg);
-    // eccrypto.verify(pubKey, msg, sig).then(function() {
-    //   console.log('Signature is OK');
-    // }).catch(function() {
-    //   console.log('Signature is BAD');
-    // });
-
-    let dataTobeSaved = {...data, ...metaData, controller, history, pubKey, msg, sig, timestamp: Date.now()};
-    delete dataTobeSaved.version;
-    delete dataTobeSaved.encrypted;
-    const { path } = await ipfs.add(JSON.stringify(dataTobeSaved));
+  const onSubmit = async metaValue => {
+    // setIsLoading(true);
+    // const metaData = removeBlankValues({...metaValue, ...imageUrl});
+    //
+    // let controller = `did:ether:${walletAddress}`;
+    // let history = [];
+    // if (data && data._id) {
+    // }
+    //
+    // let dataTobeSaved = {...data, ...metaData, controller, history, msg, timestamp: Date.now()};
+    // delete dataTobeSaved.version;
+    // delete dataTobeSaved.encrypted;
+    // const { path } = await ipfs.add(JSON.stringify(dataTobeSaved));
 
     // const addr = `/ipfs/${path}`
     // ipfs.name.publish(addr).then(function (res) {
@@ -103,37 +190,25 @@ const MetaForm = ({ onClose, data }) => {
     //   console.log(`https://gateway.ipfs.io/ipns/${res.name}`)
     // })
 
-    if (orbitdb) {
-      let id = `did:nama:${nanoid()}`;
-      let version = 0;
-      if (data) {
-        id = data._id ? data._id : id;
-        version = !isNaN(Number(data.version)) ? data.version + 1 : version;
-      }
-
-      const encrypted = await eccrypto.encrypt(Buffer.from(pubKey, 'hex'), Buffer.from('Hi NAMA'));
-      await orbitdb.put({
-        _id: id,
-        name: metaData.name,
-        version: version,
-        ipfsHash: path,
-        encrypted: encrypted,
-        timestamp: Date.now(),
-      }); // , { pin: true }
-
-      toast({
-        title: `Metadata ${data && data._id ? 'updated.' : 'created.'}`,
-        description: `We've ${data && data._id ? 'updated' : 'created'} the metadata for you.`,
-        status: 'success',
-        variant: 'left-accent',
-        position: 'top-right',
-        isClosable: true,
-      });
-
-      onClose();
-    } else {
-      console.error('orbitdb is not initialised!');
-    }
+      // await orbitdb.put({
+      //   _id: id,
+      //   name: metaData.name,
+      //   version: version,
+      //   ipfsHash: path,
+      //   encrypted: encrypted,
+      //   timestamp: Date.now(),
+      // }); // , { pin: true }
+      //
+      // toast({
+      //   title: `Metadata ${data && data._id ? 'updated.' : 'created.'}`,
+      //   description: `We've ${data && data._id ? 'updated' : 'created'} the metadata for you.`,
+      //   status: 'success',
+      //   variant: 'left-accent',
+      //   position: 'top-right',
+      //   isClosable: true,
+      // });
+      //
+      // onClose();
   };
 
   useEffect(()=> {
@@ -143,24 +218,24 @@ const MetaForm = ({ onClose, data }) => {
   }, [data])
 
   const retrieveHashData = async (cid) => {
-    for await (const file of ipfs.get(cid)) {
-      if (!file.content) continue;
-
-      const content = []
-
-      for await (const chunk of file.content) {
-        content.push(chunk)
-      }
-
-      const retMeta = {...JSON.parse(content.toString('utf8')), ...data};
-      setValue('name', retMeta.name, { shouldValidate: true });
-      setValue('external_url', retMeta.external_url, { shouldValidate: true });
-      setValue('background_color', retMeta.background_color, { shouldValidate: true });
-      setValue('animation_url', retMeta.animation_url, { shouldValidate: true });
-      setValue('youtube_url', retMeta.youtube_url, { shouldValidate: true });
-      setValue('description', retMeta.description, { shouldValidate: true });
-      return retMeta;
-    }
+    // for await (const file of ipfs.get(cid)) {
+    //   if (!file.content) continue;
+    //
+    //   const content = []
+    //
+    //   for await (const chunk of file.content) {
+    //     content.push(chunk)
+    //   }
+    //
+    //   const retMeta = {...JSON.parse(content.toString('utf8')), ...data};
+    //   setValue('name', retMeta.name, { shouldValidate: true });
+    //   setValue('external_url', retMeta.external_url, { shouldValidate: true });
+    //   setValue('background_color', retMeta.background_color, { shouldValidate: true });
+    //   setValue('animation_url', retMeta.animation_url, { shouldValidate: true });
+    //   setValue('youtube_url', retMeta.youtube_url, { shouldValidate: true });
+    //   setValue('description', retMeta.description, { shouldValidate: true });
+    //   return retMeta;
+    // }
   }
 
   const addAttribute = () => {
@@ -179,185 +254,95 @@ const MetaForm = ({ onClose, data }) => {
     register.attributes.length = 0
   };
 
-  const addImageURI = async (uri) => {
-    setImageUrl({image: `ipfs://${uri}`})
-  }
-
   return (
     <>
-      <DrawerBody>
-        <Container maxW={"6xl"}>
-          <SimpleGrid columns={[2, null, 2]} marginY={5} spacing="40px">
-            <Box>
-              <FormControl as="fieldset" isRequired={true}>
-                <FormLabel as="legend">Name:</FormLabel>
-                <Input
-                  placeholder="Name"
-                  size="lg"
-                  name={`name`}
-                  {...register(`name`)}
-                  autoComplete={'off'}
-                />
-              </FormControl>
-            </Box>
-
-            <Box>
-              <FormControl as="fieldset" isRequired={true}>
-                <FormLabel as="legend">External Link:</FormLabel>
-                <InputGroup size="lg">
-                  <InputLeftAddon children="https://" />
+      {
+        isLoading ? (
+          <Center h={'100vh'}>
+            <CircularProgress isIndeterminate color="green.300"/>
+          </Center>
+        ) :
+        <DrawerBody>
+          <Container maxW={"6xl"}>
+            <SimpleGrid columns={[2, null, 2]} marginY={5} spacing="40px">
+              <Box>
+                <FormControl as="fieldset" isRequired={true}>
+                  <FormLabel as="legend">Name:</FormLabel>
                   <Input
-                    placeholder="External link"
+                    placeholder="Name"
                     size="lg"
-                    name={`external_url`}
-                    {...register(`external_url`)}
+                    name={`name`}
+                    {...register(`name`)}
                     autoComplete={'off'}
                   />
-                </InputGroup>
-              </FormControl>
-            </Box>
+                </FormControl>
+              </Box>
 
-            <Box>
-              <FormControl as="fieldset">
-                <FormLabel as="legend">Background Color:</FormLabel>
-                <InputGroup size="lg">
-                  <InputLeftAddon children="#" />
-                  <Input
-                    placeholder="Background Color, e.g. #fffff"
-                    size="lg"
-                    name={`background_color`}
-                    {...register(`background_color`)}
-                    autoComplete={'off'}
-                  />
-                </InputGroup>
-              </FormControl>
-            </Box>
+              <Box>
+                <FormControl as="fieldset" isRequired={true}>
+                  <FormLabel as="legend">External Link:</FormLabel>
+                  <InputGroup size="lg">
+                    <InputLeftAddon children="https://"/>
+                    <Input
+                      placeholder="External link"
+                      size="lg"
+                      name={`external_url`}
+                      {...register(`external_url`)}
+                      autoComplete={'off'}
+                    />
+                  </InputGroup>
+                </FormControl>
+              </Box>
 
-            <Box>
-              <FormControl as="fieldset">
-                <FormLabel as="legend">Animation URL:</FormLabel>
-                <InputGroup size="lg">
-                  <InputLeftAddon children="https://" />
-                  <Input
-                    placeholder="Animation URL"
-                    size="lg"
-                    name={`animation_url`}
-                    {...register(`animation_url`)}
-                    autoComplete={'off'}
-                  />
-                </InputGroup>
-              </FormControl>
-            </Box>
+              <Box>
+                <FormControl as="fieldset">
+                  <FormLabel as="legend">Animation URL:</FormLabel>
+                  <InputGroup size="lg">
+                    <InputLeftAddon children="https://"/>
+                    <Input
+                      placeholder="Animation URL"
+                      size="lg"
+                      name={`animation_url`}
+                      {...register(`animation_url`)}
+                      autoComplete={'off'}
+                    />
+                  </InputGroup>
+                </FormControl>
+              </Box>
 
-            <Box>
-              <FormControl as="fieldset">
-                <FormLabel as="legend">Youtube URL:</FormLabel>
-                <InputGroup size="lg">
-                  <InputLeftAddon children="https://" />
-                  <Input
-                    placeholder="Youtube URL"
-                    size="lg"
-                    name={`youtube_url`}
-                    {...register(`youtube_url`)}
-                    autoComplete={'off'}
-                  />
-                </InputGroup>
-              </FormControl>
-            </Box>
+              <Box>
+                <FormControl as="fieldset">
+                  <FormLabel as="legend">Youtube URL:</FormLabel>
+                  <InputGroup size="lg">
+                    <InputLeftAddon children="https://"/>
+                    <Input
+                      placeholder="Youtube URL"
+                      size="lg"
+                      name={`youtube_url`}
+                      {...register(`youtube_url`)}
+                      autoComplete={'off'}
+                    />
+                  </InputGroup>
+                </FormControl>
+              </Box>
 
-            <IpfsUploader addImageURI={addImageURI}/>
+              <IpfsUploader bucketKey={bucketKey} buckets={buckets}/>
 
-          </SimpleGrid>
-
-          <FormControl as="fieldset">
-            <FormLabel as="legend">Description:</FormLabel>
-            <Textarea
-              placeholder="Description"
-              size="lg"
-              name={`description`}
-              {...register(`description`)}
-              autoComplete={'description_off'}
-            />
-          </FormControl>
-
-          <Box bg={'gray.50'} p={5}>
-            <SimpleGrid columns={[2, null, 3]} spacing="40px">
-              {
-                indexes.map(index => {
-                  const fieldName = `attributes[${index}]`;
-                  return (
-                    <Box key={fieldName} maxW={'xl'} marginTop={2} p={4} borderWidth="1px" borderRadius="lg" overflow="hidden">
-                      <FormControl as="fieldset" mt={2}>
-                        <FormLabel as="legend">Display Type:</FormLabel>
-                        <Select
-                          name={`${fieldName}.display_type`}
-                          {...register(`${fieldName}.display_type`)}
-                        >
-                          <option value="string">String</option>
-                          <option value="boost_number">Boost Number</option>
-                          <option value="boost_percentage">Boost Percentage</option>
-                          <option value="number">Number</option>
-                        </Select>
-                      </FormControl>
-
-                      <FormControl as="fieldset" mt={2}>
-                        <FormLabel as="legend">Trait Type:</FormLabel>
-                        <Input
-                          placeholder="Trait type"
-                          size="lg"
-                          autoComplete={`${fieldName}.trait_type`}
-                          name={`${fieldName}.trait_type`}
-                          {...register(`${fieldName}.trait_type`)}
-                        />
-                      </FormControl>
-
-                      <FormControl as="fieldset" mt={2}>
-                        <FormLabel as="legend">Value:</FormLabel>
-                        <Input
-                          placeholder="The trait value"
-                          size="lg"
-                          autoComplete={`${fieldName}.value`}
-                          name={`${fieldName}.value`}
-                          {...register(`${fieldName}.value`)}
-                        />
-                      </FormControl>
-
-                      <Center>
-                        <Button colorScheme="teal" variant="outline" marginTop={2} size="md" onClick={removeAttribute(index)}>
-                          Remove
-                        </Button>
-                      </Center>
-                    </Box>
-                  );
-                })}
             </SimpleGrid>
 
-            <Center>
-              <HStack marginTop={5} spacing="24px">
-                <Button
-                  colorScheme="teal"
-                  size="md"
-                  variant="outline"
-                  onClick={addAttribute}
-                  disabled={isLoading}
-                >
-                  Add Attribute
-                </Button>
-
-                <Button
-                  colorScheme="teal"
-                  size="md"
-                  variant="outline"
-                  onClick={clearAttributes}
-                  disabled={isLoading}
-                >
-                  Clear Attributes
-                </Button>
-              </HStack>
-            </Center>
-          </Box>
-        </Container>
-      </DrawerBody>
+            <FormControl as="fieldset">
+              <FormLabel as="legend">Description:</FormLabel>
+              <Textarea
+                placeholder="Description"
+                size="lg"
+                name={`description`}
+                {...register(`description`)}
+                autoComplete={'description_off'}
+              />
+            </FormControl>
+          </Container>
+        </DrawerBody>
+      }
 
       <Flex align="center" justify="center">
           <DrawerFooter textAlign={'center'}>
@@ -374,7 +359,8 @@ const MetaForm = ({ onClose, data }) => {
               colorScheme="teal"
               width={'15rem'}
               size="md"
-              isLoading={isLoading}
+              isLoading={buckets && bucketKey && isLoading}
+              disabled={isLoading}
               loadingText="Publishing"
               spinnerPlacement="end"
               onClick={handleSubmit(onSubmit)}

@@ -4,11 +4,11 @@ This is implemented during the Scaling Ethereum Hackathon hosted by ETHGlobal.
 
 ## Tech stack
 
-* Torus - multi-chain login, encrypt and verify data
-* IPFS - stores the meta data
-* Orbitdb - stores the IPFS hashes and abstraction meta data
-* DID - Decentralised Identifier for each NFTs
+* Ceramic
+    - NFT DIDs - Decentralised Identifier for each NFTs
 
+* Textile - stores the IPFS hashes and abstraction meta data
+* IPFS/Filecoin - Fundamentally data storage layer
 
 ## Overview diagram
 

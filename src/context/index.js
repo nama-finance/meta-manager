@@ -1,10 +1,10 @@
-import React from 'react'
+import { createContext } from 'react'
 
-const IpfsContext = React.createContext();
+const IpfsContext = createContext();
 
-const OrbitdbContext = React.createContext();
+const OrbitdbContext = createContext();
 
-const TorusContext = React.createContext({
+const TorusContext = createContext({
   walletAddress: '',
   pubKey: '',
   privKey: '',
@@ -13,8 +13,17 @@ const TorusContext = React.createContext({
   onTorusLogout: () => {}
 })
 
+const WalletAddressContext = createContext({});
+
+const WalletProviderContext = createContext({});
+
+const TextileProviderContext = createContext({});
+
 export {
   IpfsContext,
   OrbitdbContext,
   TorusContext,
+  WalletAddressContext,
+  WalletProviderContext,
+  TextileProviderContext,
 }

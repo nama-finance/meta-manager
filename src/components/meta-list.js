@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
-import {OrbitdbContext, TorusContext} from '../context';
+import { OrbitdbContext, TorusContext, WalletAddressContext } from '../context';
 import {
   Drawer,
   DrawerHeader,
@@ -25,6 +25,12 @@ import {
   AlertDialogCloseButton,
   useToast,
   useClipboard,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  MenuGroup,
+  Box, Center, CircularProgress,
 } from '@chakra-ui/react';
 import {
   DeleteIcon,
@@ -34,14 +40,15 @@ import {
 } from '@chakra-ui/icons';
 import MetaForm from './meta-form';
 import { format } from 'date-fns';
+import useTextile from '../hooks/use-textile';
+import { Where } from '@textile/hub';
 
 const cursor = {
   cursor: 'pointer'
 };
 
 const MetaList = () => {
-  const { orbitdb } = useContext(OrbitdbContext);
-
+  const [isLoading, setLoading] = useState(true);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isAlertOpen, onOpen: onAlertOpen, onClose: onAlertClose } = useDisclosure();
   const cancelRef = useRef();
@@ -50,41 +57,29 @@ const MetaList = () => {
   const [selectedMetaId, setSelectedMetaId] = useState('');
   const [metadata, setMetadata] = useState();
 
-  const { walletAddress } = useContext(TorusContext);
+  const { walletAddress } = useContext(WalletAddressContext);
+
+  const { identity, buckets, threadDBClient, bucketKey, threadID } = useTextile()
 
   const toast = useToast();
   const [value, setValue] = useState('')
   const { hasCopied, onCopy } = useClipboard(value)
 
   useEffect(() => {
-    loadData()
-  }, [orbitdb])
-
-  // useEffect(() => {
-  //   if (hasCopied) {
-  //     setValue('');
-  //   }
-  // }, [hasCopied])
+    if (threadDBClient && threadID) {
+      loadData()
+    }
+  }, [threadDBClient, threadID])
 
   const loadData = async () => {
-    if (orbitdb) {
-      await orbitdb.load();
-      dbQuery();
-
-      orbitdb.events.on('write', () => {
-        dbQuery();
-      })
-    }
-  }
-
-  const dbQuery = () => {
-    const metadata = orbitdb.query((e) => true)
-    setMetaList(metadata)
+    const query = new Where('_id').eq( '01f6wgw8bb6fmdkkb9swt8dtzk')
+    const astronaut = await threadDBClient.find(threadID, 'collection', query)
+    console.log('astronaut', astronaut)
   }
 
   const deleteMetadata = async () => {
     if (selectedMetaId) {
-      await orbitdb.del(selectedMetaId);
+      // await orbitdb.del(selectedMetaId);
       onMetaAlertClose();
       toast({
         title: `Metadata deleted`,
@@ -166,11 +161,19 @@ const MetaList = () => {
       <Flex justify="flex-end">
         {
           walletAddress ?
-          <Button
-            colorScheme="teal"
-            onClick={() => onOpen()}
-            m={4}
-          >Add New Metadata</Button>
+            (
+              <Box m={4}>
+                <Menu>
+                  <MenuButton as={Button} colorScheme="teal">
+                    Create
+                  </MenuButton>
+                  <MenuList>
+                    <MenuItem onClick={() => onOpen()}>Collection</MenuItem>
+                    <MenuItem onClick={() => onOpen()}>NFT</MenuItem>
+                  </MenuList>
+                </Menu>
+              </Box>
+            )
             : ''
         }
       </Flex>

@@ -1,9 +1,10 @@
-import React, {useContext, useEffect, useState} from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { SimpleGrid } from '@chakra-ui/react';
 import './ipfs-uploader.css';
-import { IpfsContext } from '../context';
-const Buffer = require('buffer').Buffer;
+import useTextile from '../hooks/use-textile';
+import { TextileProviderContext } from '../context';
+
 
 const thumbsContainer = {
   display: 'flex',
@@ -37,20 +38,28 @@ const img = {
   height: '100%'
 };
 
-export default function IpfsUploader({addImageURI}) {
-  const { ipfs } = useContext(IpfsContext)
-
+export default function IpfsUploader({bucketKey, buckets}) {
   const [files, setFiles] = useState([]);
 
   useEffect(() => {
     files.forEach(file => {
-      let reader = new FileReader()
-      reader.onloadend = async () => await saveToIpfs(ipfs, reader)
-      reader.readAsArrayBuffer(file)
+      saveFileToBuckets(file, file.name)
+      URL.revokeObjectURL(file.preview)
     })
   }, [files])
 
-  const {getRootProps, getInputProps} = useDropzone({
+  const saveFileToBuckets = (file, path) => {
+    const reader = new FileReader()
+    // reader.onabort = () => throw Error('file reading was aborted')
+    // reader.onerror = () => throw Error('file reading has failed')
+    reader.onloadend = async () => {
+      const ret = await buckets.pushPath(bucketKey, path, reader.result)
+      console.log('loaded:', ret)
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  const { getRootProps, getInputProps } = useDropzone({
     accept: 'image/*',
     onDrop: acceptedFiles => {
       setFiles(acceptedFiles.map(file => {
@@ -60,13 +69,6 @@ export default function IpfsUploader({addImageURI}) {
       }));
     }
   });
-
-  const saveToIpfs = async (ipfs, reader) => {
-    const buffer = Buffer.from(reader.result)
-    const { path } = await ipfs.add(buffer)
-    // await ipfs.name.publish(`/ipfs/${path}`)
-    await addImageURI(path)
-  }
 
   const thumbs = files.map(file => (
     <div style={thumb} key={file.name}>
@@ -78,34 +80,6 @@ export default function IpfsUploader({addImageURI}) {
       </div>
     </div>
   ));
-
-  useEffect(() => () => {
-    files.forEach(file => URL.revokeObjectURL(file.preview));
-  }, [files]);
-
-  const Title = ({ children }) => {
-    return (
-      <h2 className='f5 ma0 pb2 tracked aqua fw4 montserrat'>{children}</h2>
-    )
-  }
-
-  // eslint-disable-next-line
-  const IpfsId = (props) => {
-    if (!props) return null
-    return (
-      <section className='bg-snow mw7 center mt5'>
-        <h1 className='f3 fw4 ma0 pv3 aqua montserrat tc' data-test='title'>Connected to IPFS</h1>
-        <div className='pa4'>
-          {['id', 'agentVersion'].map((key) => (
-            <div className='mb4' key={key}>
-              <Title>{key}</Title>
-              <div className='bg-white pa2 br2 truncate monospace' data-test={key}>{props[key]}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-    )
-  }
 
   return (
     <>
@@ -124,13 +98,6 @@ export default function IpfsUploader({addImageURI}) {
           {thumbs}
         </aside>
       </SimpleGrid>
-
-      {/*{ipfsInitError && (*/}
-      {/*  <div className='bg-yellow pa4 mw7 center mv4 white'>*/}
-      {/*    Error: {ipfsInitError.message || ipfsInitError}*/}
-      {/*  </div>*/}
-      {/*)}*/}
-      {/*{id && <IpfsId {...id} />}*/}
     </>
   );
 }

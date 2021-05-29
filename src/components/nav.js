@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { Button, Flex } from '@chakra-ui/react';
-import { TorusContext } from '../context';
+import { WalletAddressContext } from '../context';
 
 
 const cursor = {
@@ -8,7 +8,7 @@ const cursor = {
 };
 
 const Nav = () => {
-  const { walletAddress, onTorusLogin, onTorusLogout } = useContext(TorusContext);
+  const { walletAddress, onWeb3Connect, onReset } = useContext(WalletAddressContext);
 
   return (
     <>
@@ -20,14 +20,14 @@ const Nav = () => {
         <span>Meta Manager</span>
         {
           walletAddress ? (
-            <div onClick={() => onTorusLogout()} style={cursor} title={'Click to logout'}>
+            <div onClick={() => onReset()} style={cursor} title={'Click to logout'}>
               Logged in: { `${walletAddress.substr(0, 8)}...${walletAddress.substr(-4)}` }
             </div>
             ) :
           (<Button
             colorScheme="blue"
             _hover={{bg: "#0c6ff9"}}
-            onClick={onTorusLogin}
+            onClick={() => onWeb3Connect()}
           >Connect Wallet</Button>)
         }
       </Flex>
