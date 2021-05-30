@@ -1,19 +1,39 @@
-# Decentralised data manager for meta creators (ETH)
+# Decentralised data manager for meta creators
 
-This is implemented during the Scaling Ethereum Hackathon hosted by ETHGlobal.
+Huge improvements for the previous Scaling Ethereum Hackathon project.
+
+## What changed
+
+* Add mint feature that enables the meta creators to mint their metadata to NFT just in one-click
+  
+* Replace Orbitdb with Textile's ThreadDB
+
+* Use Textile's Buckets to manage the media files for meta creators all in one place
+
+* Use nft.storage API to persist the to be minted metadata
+
+* Use Ceramic to track the change history of the metadata, and NFT DID resolver
+
 
 ## Tech stack
 
-* Torus - multi-chain login, encrypt and verify data
-* IPFS - stores the meta data
-* Orbitdb - stores the IPFS hashes and abstraction meta data
-* DID - Decentralised Identifier for each NFTs
+* Ceramic
+  
+  - NFT DIDs - Decentralised Identifier for each NFTs
 
+  - Metadata curation history tracking
 
-## Overview diagram
+* Textile 
+  
+  - Buckets - stores the media files
+  
+  - ThreadDB - stores the raw metadata
 
-<img src="images/overview-diagram.png" />
-
+* nft.storage
+  
+  - Save data to Filecoin
+  
+* IPFS/Filecoin - Fundamentally data storage layer
 
 ## Screenshots
 
