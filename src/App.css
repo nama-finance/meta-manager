@@ -1,3 +1,7 @@
 .App {
   /*text-align: center;*/
 }
+
+input[type="button"]:focus {
+ outline: none;
+}

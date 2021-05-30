@@ -17,20 +17,24 @@ import {
   DrawerBody,
   DrawerFooter,
   Flex,
+  InputRightAddon,
+  Spinner,
+  Image,
   useToast, CircularProgress
 } from '@chakra-ui/react';
-import { nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
 import NftResolver from 'nft-did-resolver';
 import { Resolver } from 'did-resolver';
 import Ceramic from '@ceramicnetwork/http-client';
-import { TextileProviderContext, WalletAddressContext, WalletProviderContext } from '../context';
+import { TextileContext, TextileProviderContext, WalletAddressContext, WalletProviderContext } from '../context';
 import IpfsUploader from './ipfs-uploader';
 import KeyDidResolver from 'key-did-resolver'
 import ThreeIdResolver from '@ceramicnetwork/3id-did-resolver'
 import { DID } from 'dids';
 import { ThreeIdConnect,  EthereumAuthProvider } from '@3id/connect';
-import useTextile from '../hooks/use-textile';
-import { ThreadID, Where } from '@textile/hub';
+import { Where } from '@textile/hub';
+import ReactTagInput from '@pathofdev/react-tag-input';
+import '@pathofdev/react-tag-input/build/index.css';
 const Ed25519Provider = require('key-did-provider-ed25519');
 
 
@@ -52,20 +56,20 @@ const config = {
   //   }
   // }
 }
+const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 28)
 
 const MetaForm = ({ onClose, data }) => {
-  const [indexes, setIndexes] = useState([]);
-  const [counter, setCounter] = useState(0);
-  const [imageUrl, setImageUrl] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isFileLoading, setIsFileLoading] = useState(false);
+  const [tags, setTags] = useState([])
 
   const { register, handleSubmit, setValue } = useForm();
 
   const { walletAddress } = useContext(WalletAddressContext);
   const { web3 } = useContext(WalletProviderContext);
 
-  // const { identity, buckets } = useContext(TextileProviderContext);
-  const { identity, buckets, threadDBClient, bucketKey, threadID } = useTextile()
+  const { buckets, threadDBClient, bucketKey, threadID } = useContext(TextileContext)
 
   const toast = useToast();
 
@@ -77,29 +81,40 @@ const MetaForm = ({ onClose, data }) => {
 
   useEffect(() => {
     if (threadID && threadDBClient && bucketKey) {
-      callAbc()
+      if (data && data._id) {
+        retrieveHashData(data._id)
+      } else {
+        setIsLoading(false);
+      }
     }
-  }, [threadID, threadDBClient, bucketKey])
+  }, [buckets, threadDBClient])
 
   const callAbc = async () => {
     console.log(bucketKey, buckets, threadID)
+    await threadDBClient.deleteCollection(threadID, 'nama')
 
+    // await buckets.removePath(bucketKey, 'pregnancy-week-10-fingernails_square.png.pagespeed.ce.6Z8OiD1KDm.png')
     const links = await buckets.links(bucketKey)
     console.log('links:', links)
     const buzz = {
-      name: 'Buzzaa',
+      namea: 'Buzzaa',
       missions: 22,
       _id: '',
     }
     // await threadDBClient.newCollectionFromObject(threadID, buzz)
-
+    try {
+      const info = await threadDBClient.getCollectionInfo(threadID, 'collectionaaa')
+      console.log('info:', info)
+    } catch (e) {
+      console.log(e.code)
+    }
     // Store the buzz object in the new collection
     // await threadDBClient.create(threadID, 'collection', [buzz])
 
     const coll = await threadDBClient.listCollections(threadID)
-    console.log('coll:', coll)
+    console.log('coll:', coll.filter(c => c.name === 'collection'))
 
-    const query = new Where('name')
+    const query = new Where('')
     const astronaut = await threadDBClient.find(threadID, 'collection', query)
     console.log('astronaut', astronaut)
   }
@@ -109,19 +124,20 @@ const MetaForm = ({ onClose, data }) => {
 
     const addresses = await window.ethereum.enable()
     console.log('addresses:', addresses)
-
+    console.log('rpcUrl:', web3.jsonrpc)
     const threeIdConnect = new ThreeIdConnect();
-    const authProvider = new EthereumAuthProvider(window.ethereum, walletAddress)
+    console.log('===>', window.ethereum)
+    const authProvider = new EthereumAuthProvider(web3, walletAddress)
     await threeIdConnect.connect(authProvider)
     const provider = await threeIdConnect.getDidProvider()
 
-    const resolver = { ...ThreeIdResolver.getResolver(ceramic) };
+    const resolver = new Resolver({ ...ThreeIdResolver.getResolver(ceramic) });
     const did = new DID({ provider, resolver })
 
+    await did.authenticate()
     await ceramic.setDID(did)
-    await ceramic.did.authenticate()
 
-    // ceramic.did.setProvider(provider)
+    ceramic.did.setProvider(provider)
 
 
     // await did.authenticate();
@@ -148,120 +164,84 @@ const MetaForm = ({ onClose, data }) => {
     }
   }
 
-  const saveData = async () => {
-    console.log('===>', identity) //'identity=>', Buffer.from(identity.pubKey, 'hex').toString('hex')
+  const onSubmit = async metaValue => {
+    setIsSaving(true);
+    const metaData = removeBlankValues({...metaValue});
 
     // const links = await buckets.links(bucketKey)
     // console.log('links:', links)
 
-    // Create a json model for the index
-    const index = {
-      author: identity.public.toString(),
-      date: (new Date()).getTime(),
-      paths: [],
+    const formData = {
+      ...metaData,
+      _id: data && data._id ? data._id : `did:nft:${nanoid()}`,
+      version: data && data._id ? data.version + 1 : 1,
+      tags,
+      timestamp: Date.now()
     }
-    // Store the index in the Bucket (or in the Thread later)
-    return new Promise((resolve, reject) => {
-      const buf = Buffer.from(JSON.stringify(index, null, 2))
-      const patha = `index.json`
-      buckets.pushPath(bucketKey, patha, buf).then((raw) => {
-        resolve(raw)
-      })
-    })
+
+    const collName = 'nama'
+    if (data && data._id) {
+      await threadDBClient.save(threadID, collName, [formData])
+    } else {
+      const collections = await threadDBClient.listCollections(threadID)
+      const coll = collections.find(c => c.name === collName)
+      if (!coll) {
+        await threadDBClient.newCollection(threadID, { name: collName })
+      }
+
+      // Store the buzz object in the new collection
+      await threadDBClient.create(threadID, collName, [formData])
+    }
+
+    toast({
+      title: `Metadata ${data && data._id ? 'updated.' : 'created.'}`,
+      description: `We've ${data && data._id ? 'updated' : 'created'} the metadata for you.`,
+      status: 'success',
+      variant: 'left-accent',
+      position: 'top-right',
+      isClosable: true,
+    });
+
+    setIsSaving(false)
+    onClose();
+  };
+
+  const retrieveHashData = async (id) => {
+    const ret = await threadDBClient.findByID(threadID, 'nama', id)
+    const meta = {...data, ...ret};
+    console.log(meta.tags, 'modify id:', id)
+    setValue('name', meta.name, { shouldValidate: true });
+    setValue('image_hash', meta.image_hash, { shouldValidate: true });
+    setValue('image_path', meta.image_path, { shouldValidate: true });
+    setValue('animation_hash', meta.animation_hash, { shouldValidate: true });
+    setValue('animation_path', meta.animation_path, { shouldValidate: true });
+    setValue('description', meta.description, { shouldValidate: true });
+    setTags(meta.tags)
+    setIsLoading(false);
   }
 
-  const onSubmit = async metaValue => {
-    // setIsLoading(true);
-    // const metaData = removeBlankValues({...metaValue, ...imageUrl});
-    //
-    // let controller = `did:ether:${walletAddress}`;
-    // let history = [];
-    // if (data && data._id) {
-    // }
-    //
-    // let dataTobeSaved = {...data, ...metaData, controller, history, msg, timestamp: Date.now()};
-    // delete dataTobeSaved.version;
-    // delete dataTobeSaved.encrypted;
-    // const { path } = await ipfs.add(JSON.stringify(dataTobeSaved));
-
-    // const addr = `/ipfs/${path}`
-    // ipfs.name.publish(addr).then(function (res) {
-    //   console.log('res:', res)
-    //   console.log(`https://gateway.ipfs.io/ipns/${res.name}`)
-    // })
-
-      // await orbitdb.put({
-      //   _id: id,
-      //   name: metaData.name,
-      //   version: version,
-      //   ipfsHash: path,
-      //   encrypted: encrypted,
-      //   timestamp: Date.now(),
-      // }); // , { pin: true }
-      //
-      // toast({
-      //   title: `Metadata ${data && data._id ? 'updated.' : 'created.'}`,
-      //   description: `We've ${data && data._id ? 'updated' : 'created'} the metadata for you.`,
-      //   status: 'success',
-      //   variant: 'left-accent',
-      //   position: 'top-right',
-      //   isClosable: true,
-      // });
-      //
-      // onClose();
-  };
-
-  useEffect(()=> {
-    if (data && data.ipfsHash) {
-      retrieveHashData(data.ipfsHash)
-    }
-  }, [data])
-
-  const retrieveHashData = async (cid) => {
-    // for await (const file of ipfs.get(cid)) {
-    //   if (!file.content) continue;
-    //
-    //   const content = []
-    //
-    //   for await (const chunk of file.content) {
-    //     content.push(chunk)
-    //   }
-    //
-    //   const retMeta = {...JSON.parse(content.toString('utf8')), ...data};
-    //   setValue('name', retMeta.name, { shouldValidate: true });
-    //   setValue('external_url', retMeta.external_url, { shouldValidate: true });
-    //   setValue('background_color', retMeta.background_color, { shouldValidate: true });
-    //   setValue('animation_url', retMeta.animation_url, { shouldValidate: true });
-    //   setValue('youtube_url', retMeta.youtube_url, { shouldValidate: true });
-    //   setValue('description', retMeta.description, { shouldValidate: true });
-    //   return retMeta;
-    // }
+  const onUploaded = (pro, path, data) => {
+    const hash = data && data.path && data.path.path
+    const propPath = pro.replace('hash', 'path')
+    const cid = hash.split('/')[2]
+    setValue(`${pro}`, cid, { shouldValidate: true })
+    setValue(propPath, path, { shouldValidate: true })
+    setIsFileLoading(false)
   }
 
-  const addAttribute = () => {
-    setIndexes(prevIndexes => [...prevIndexes, counter]);
-    setCounter(prevCounter => prevCounter + 1);
-  };
-
-  const removeAttribute = index => () => {
-    setIndexes(prevIndexes => [...prevIndexes.filter(item => item !== index)]);
-    setCounter(prevCounter => prevCounter - 1);
-  };
-
-  const clearAttributes = () => {
-    setIndexes([]);
-    register.attributes = []
-    register.attributes.length = 0
-  };
+  const onLoading = () => {
+    setIsFileLoading(true)
+  }
 
   return (
     <>
       {
         isLoading ? (
           <Center h={'100vh'}>
-            <CircularProgress isIndeterminate color="green.300"/>
+            <CircularProgress isIndeterminate color="green.300" />
           </Center>
-        ) :
+        ) : ''
+      }
         <DrawerBody>
           <Container maxW={"6xl"}>
             <SimpleGrid columns={[2, null, 2]} marginY={5} spacing="40px">
@@ -274,63 +254,79 @@ const MetaForm = ({ onClose, data }) => {
                     name={`name`}
                     {...register(`name`)}
                     autoComplete={'off'}
+                    disabled={isLoading || isSaving}
                   />
                 </FormControl>
               </Box>
 
               <Box>
                 <FormControl as="fieldset" isRequired={true}>
-                  <FormLabel as="legend">External Link:</FormLabel>
+                  <FormLabel as="legend">Tags:</FormLabel>
+                  <ReactTagInput
+                    tags={tags}
+                    onChange={(newTags) => setTags(newTags)}
+                    readOnly={isSaving}
+                  />
+                </FormControl>
+              </Box>
+
+              <Box>
+                <FormControl as="fieldset">
+                  <FormLabel as="legend">Image Hash:</FormLabel>
                   <InputGroup size="lg">
-                    <InputLeftAddon children="https://"/>
+                    <InputLeftAddon children="ipfs://"/>
                     <Input
-                      placeholder="External link"
+                      placeholder="Image Hash"
                       size="lg"
-                      name={`external_url`}
-                      {...register(`external_url`)}
+                      name={`image_hash`}
+                      {...register(`image_hash`)}
                       autoComplete={'off'}
+                      isReadOnly={true}
                     />
+                    <InputRightAddon>
+                      <IpfsUploader
+                        bucketKey={bucketKey}
+                        buckets={buckets}
+                        onUploaded={onUploaded}
+                        onLoading={onLoading}
+                        prop={'image_hash'}
+                        isFileLoading={isFileLoading || isSaving}
+                      />
+                    </InputRightAddon>
                   </InputGroup>
                 </FormControl>
               </Box>
 
               <Box>
                 <FormControl as="fieldset">
-                  <FormLabel as="legend">Animation URL:</FormLabel>
+                  <FormLabel as="legend">Animation Hash:</FormLabel>
                   <InputGroup size="lg">
-                    <InputLeftAddon children="https://"/>
+                    <InputLeftAddon children="ipfs://"/>
                     <Input
-                      placeholder="Animation URL"
+                      placeholder="Animation Hash"
                       size="lg"
-                      name={`animation_url`}
-                      {...register(`animation_url`)}
+                      name={`animation_hash`}
+                      {...register(`animation_hash`)}
                       autoComplete={'off'}
+                      isReadOnly={true}
                     />
+                    <InputRightAddon>
+                      <IpfsUploader
+                        bucketKey={bucketKey}
+                        buckets={buckets}
+                        onUploaded={onUploaded}
+                        onLoading={onLoading}
+                        isFileLoading={isFileLoading || isSaving}
+                        prop={'animation_hash'}
+                      />
+                    </InputRightAddon>
                   </InputGroup>
                 </FormControl>
               </Box>
-
-              <Box>
-                <FormControl as="fieldset">
-                  <FormLabel as="legend">Youtube URL:</FormLabel>
-                  <InputGroup size="lg">
-                    <InputLeftAddon children="https://"/>
-                    <Input
-                      placeholder="Youtube URL"
-                      size="lg"
-                      name={`youtube_url`}
-                      {...register(`youtube_url`)}
-                      autoComplete={'off'}
-                    />
-                  </InputGroup>
-                </FormControl>
-              </Box>
-
-              <IpfsUploader bucketKey={bucketKey} buckets={buckets}/>
 
             </SimpleGrid>
 
-            <FormControl as="fieldset">
+            <FormControl as="fieldset" mt={'3rem'}>
               <FormLabel as="legend">Description:</FormLabel>
               <Textarea
                 placeholder="Description"
@@ -338,11 +334,11 @@ const MetaForm = ({ onClose, data }) => {
                 name={`description`}
                 {...register(`description`)}
                 autoComplete={'description_off'}
+                isReadOnly={isSaving}
               />
             </FormControl>
           </Container>
         </DrawerBody>
-      }
 
       <Flex align="center" justify="center">
           <DrawerFooter textAlign={'center'}>
@@ -351,7 +347,7 @@ const MetaForm = ({ onClose, data }) => {
               width={'15rem'}
               mr={'2rem'}
               onClick={onClose}
-              disabled={isLoading}
+              disabled={(isLoading || isFileLoading || isSaving)}
             >
               Cancel
             </Button>
@@ -359,13 +355,13 @@ const MetaForm = ({ onClose, data }) => {
               colorScheme="teal"
               width={'15rem'}
               size="md"
-              isLoading={buckets && bucketKey && isLoading}
-              disabled={isLoading}
-              loadingText="Publishing"
+              isLoading={isSaving}
+              disabled={(isLoading || isFileLoading || isSaving)}
+              loadingText="Saving"
               spinnerPlacement="end"
               onClick={handleSubmit(onSubmit)}
             >
-              Publish
+              Save
             </Button>
           </DrawerFooter>
         </Flex>

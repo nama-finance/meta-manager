@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Buckets, Client, PrivateKey, ThreadID } from '@textile/hub';
 
 
-export default function useTextile (bucketName = 'collection') {
+export default function useTextile (bucketName = 'nama') {
   const [identity, setIdentity] = useState(undefined);
   const [buckets, setBuckets] = useState(undefined);
   const [threadDBClient, setThreadDBClient] = useState(undefined);
@@ -21,7 +21,7 @@ export default function useTextile (bucketName = 'collection') {
     if (identity && !threadDBClient) {
       getThreadDBClient(identity, setThreadDBClient)
     }
-  }, [identity]);
+  }, [identity, buckets, threadDBClient, bucketName]);
 
   return { identity, buckets, threadDBClient, threadID: threadId && ThreadID.fromString(threadId), bucketKey };
 }

@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import Nav from './components/nav';
-import { WalletAddressContext, WalletProviderContext, TextileProviderContext } from './context'
+import { WalletAddressContext, WalletProviderContext, TextileContext } from './context'
 import './App.css';
 import MetaList from './components/meta-list';
 import { CircularProgress, Center } from '@chakra-ui/react';
 import { ethers } from 'ethers';
 import Web3Modal from 'web3modal';
 import WalletConnectProvider from '@walletconnect/web3-provider';
-import useTextile from './hooks/use-textile';
 
 
 const providerOptions = {
@@ -28,13 +27,10 @@ function App() {
   const [signer, setSigner] = useState(undefined);
 
   const web3Modal = new Web3Modal({
-    network: 'mainnet',
+    network: 'rinkeby',
     cacheProvider: true,
     providerOptions
   });
-
-// let identity, buckets, threadDBClient
-
 
   const onWeb3Connect = async () => {
     await onReset();
@@ -61,14 +57,6 @@ function App() {
   }, [])
 
 
-  // useEffect(() => {
-  //   if (buckets) {
-  //     console.log('identity:', identity, buckets)
-  //     isLoading && setLoading(false)
-  //   }
-  //
-  // }, [buckets])
-
   const subscribeProvider = async (provider) => {
     if (!provider.on) {
       return;
@@ -89,7 +77,6 @@ function App() {
 
   const onReset = async () => {
     await web3Modal.clearCachedProvider();
-    // await onWeb3Connect();
   }
 
   return (
@@ -99,19 +86,15 @@ function App() {
         </Center>
       )
     : (
-        // <TextileProviderContext.Provider value={{identity, buckets}}>
         <WalletProviderContext.Provider value={{provider, web3}}>
           <WalletAddressContext.Provider value={{walletAddress, onWeb3Connect, onReset, signer}}>
+            <div className="App">
+              <Nav />
 
-              <div className="App">
-                <Nav />
-
-                <MetaList />
-              </div>
-
+              <MetaList />
+            </div>
           </WalletAddressContext.Provider>
         </WalletProviderContext.Provider>
-        // </TextileProviderContext.Provider>
       )
   );
 }

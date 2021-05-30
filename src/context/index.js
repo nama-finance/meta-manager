@@ -17,7 +17,7 @@ const WalletAddressContext = createContext({});
 
 const WalletProviderContext = createContext({});
 
-const TextileProviderContext = createContext({});
+const TextileContext = createContext({});
 
 export {
   IpfsContext,
@@ -25,5 +25,5 @@ export {
   TorusContext,
   WalletAddressContext,
   WalletProviderContext,
-  TextileProviderContext,
+  TextileContext,
 }
