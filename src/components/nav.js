@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
-import { Button, Flex } from '@chakra-ui/react';
+import { Button, Flex, Wrap, Box, WrapItem } from '@chakra-ui/react';
 import { WalletAddressContext } from '../context';
+import { Link } from 'react-router-dom';
 
 
 const cursor = {
@@ -20,9 +21,20 @@ const Nav = () => {
         <span>Meta Manager</span>
         {
           walletAddress ? (
-            <div onClick={() => onReset()} style={cursor} title={'Click to logout'}>
-              Logged in: { `${walletAddress.substr(0, 8)}...${walletAddress.substr(-4)}` }
-            </div>
+            <Wrap spacing="30px">
+              <WrapItem>
+                <Link to="/">Meta List</Link>
+              </WrapItem>
+              <WrapItem>
+                <Link to="/bucket">Media Bucket</Link>
+              </WrapItem>
+              <WrapItem>
+                <div onClick={() => onReset()} style={cursor} title={'Click to logout'}>
+                  Logged in: { `${walletAddress.substr(0, 8)}...${walletAddress.substr(-4)}` }
+                </div>
+              </WrapItem>
+
+            </Wrap>
             ) :
           (<Button
             colorScheme="blue"

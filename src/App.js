@@ -3,11 +3,12 @@ import Nav from './components/nav';
 import { WalletAddressContext, WalletProviderContext, TextileContext } from './context'
 import './App.css';
 import MetaList from './components/meta-list';
+import MetaBucket from './components/meta-bucket';
 import { CircularProgress, Center } from '@chakra-ui/react';
 import { ethers } from 'ethers';
 import Web3Modal from 'web3modal';
 import WalletConnectProvider from '@walletconnect/web3-provider';
-
+import { Switch, Route } from 'react-router-dom';
 
 const providerOptions = {
   /* See Provider Options Section */
@@ -91,7 +92,10 @@ function App() {
             <div className="App">
               <Nav />
 
-              <MetaList />
+              <Switch>
+                <Route path="/" exact component={MetaList} />
+                <Route path="/bucket" exact component={MetaBucket} />
+              </Switch>
             </div>
           </WalletAddressContext.Provider>
         </WalletProviderContext.Provider>
